@@ -1,16 +1,16 @@
-package org.apache.spark.sql.hybrid.json.datasource
+package org.apache.spark.sql.hybrid.json.datasource.mongo
 
-import Const.Database.IndexStore
+import org.apache.spark.sql.hybrid.json.datasource.Syntax._
+import org.apache.spark.sql.hybrid.json.datasource.mongo.MongoClient.DATABASE_NAME
 import org.mongodb.scala.{ Document, FindObservable, MongoClient => NativeMongoClient }
-import Syntax._
 
 import java.io.Closeable
 
-case class MongoClient(private val native: NativeMongoClient) extends Closeable {
+case class MongoClient(client: NativeMongoClient) extends Closeable {
 
   def insertOne(table: String, entity: Document): Unit = {
-    native
-      .getDatabase(IndexStore)
+    client
+      .getDatabase(DATABASE_NAME)
       .getCollection(table)
       .insertOne(entity)
       .head()
@@ -18,17 +18,19 @@ case class MongoClient(private val native: NativeMongoClient) extends Closeable 
   }
 
   def find(table: String, expr: Document): FindObservable[Document] = {
-    native
-      .getDatabase(IndexStore)
+    client
+      .getDatabase(DATABASE_NAME)
       .getCollection(table)
       .find(expr)
   }
 
   override def close(): Unit = {
-    native.close()
+    client.close()
   }
 }
 
 object MongoClient {
+  private final val DATABASE_NAME = "index_store"
+
   def apply(mongoUri: String): MongoClient = MongoClient(NativeMongoClient(mongoUri))
 }

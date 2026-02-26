@@ -1,17 +1,16 @@
 package org.apache.spark.sql.hybrid.json.datasource.parser
 
+import java.io.CharArrayWriter
+
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JacksonGenerator
-import org.apache.spark.sql.hybrid.json.datasource.util.JSONOptions
 import org.apache.spark.sql.types.StructType
-
-import java.io.CharArrayWriter
 
 class RowParser(schema: StructType) {
 
   def toJsonString(input: Iterator[InternalRow]): Iterator[String] = {
     val writer     = new CharArrayWriter()
-    val jacksonGen = new JacksonGenerator(schema, writer, JSONOptions.empty)
+    val jacksonGen = new JacksonGenerator(schema, writer, emptySparkJsonOptions)
 
     new Iterator[String] {
       override def hasNext: Boolean = input.hasNext
