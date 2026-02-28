@@ -7,7 +7,7 @@ import org.apache.spark.sql.sources.{ BaseRelation, Filter, PrunedFilteredScan }
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{ Row, SQLContext, SparkSession }
 
-case class HybridJsonRelation(schema: StructType, options: HybridJsonOptions)
+private[sql] case class HybridJsonRelation(schema: StructType, options: HybridJsonOptions)
     extends BaseRelation
     with PrunedFilteredScan {
   def sqlContext: SQLContext = SparkSession.active.sqlContext

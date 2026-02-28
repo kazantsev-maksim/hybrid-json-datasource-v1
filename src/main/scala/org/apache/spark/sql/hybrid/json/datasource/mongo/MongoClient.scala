@@ -1,36 +1,40 @@
 package org.apache.spark.sql.hybrid.json.datasource.mongo
 
 import org.apache.spark.sql.hybrid.json.datasource.Syntax._
-import org.apache.spark.sql.hybrid.json.datasource.mongo.MongoClient.DATABASE_NAME
-import org.mongodb.scala.{ Document, FindObservable, MongoClient => NativeMongoClient }
+import org.apache.spark.sql.hybrid.json.datasource.mongo.codec.{ Decoder, Encoder }
+import org.mongodb.scala.{ Document, MongoClient => NativeMongoClient }
 
 import java.io.Closeable
 
-case class MongoClient(client: NativeMongoClient) extends Closeable {
+private[sql] case class MongoClient(client: NativeMongoClient, database: String, tableName: String) extends Closeable {
 
-  def insertOne(table: String, entity: Document): Unit = {
+  def insert[D: Encoder](document: D): Unit = {
     client
-      .getDatabase(DATABASE_NAME)
-      .getCollection(table)
-      .insertOne(entity)
+      .getDatabase(database)
+      .getCollection(tableName)
+      .insertOne(implicitly[Encoder[D]].encode(document))
       .head()
       .await()
   }
 
-  def find(table: String, expr: Document): FindObservable[Document] = {
+  def findByObjectName[D: Decoder](objectName: String): Seq[D] = {
     client
-      .getDatabase(DATABASE_NAME)
-      .getCollection(table)
-      .find(expr)
+      .getDatabase(database)
+      .getCollection(tableName)
+      .find(Document("object_name" -> objectName))
+      .toFuture()
+      .await()
+      .flatMap(implicitly[Decoder[D]].decode)
   }
 
-  override def close(): Unit = {
+  def close(): Unit = {
     client.close()
   }
 }
 
 object MongoClient {
-  private final val DATABASE_NAME = "index_store"
 
-  def apply(mongoUri: String): MongoClient = MongoClient(NativeMongoClient(mongoUri))
+  def apply(mongoUri: String, database: String, tableName: String): MongoClient = {
+    new MongoClient(NativeMongoClient(mongoUri), database, tableName)
+  }
 }

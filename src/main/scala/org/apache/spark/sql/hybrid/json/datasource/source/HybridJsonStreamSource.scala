@@ -1,33 +1,28 @@
 package org.apache.spark.sql.hybrid.json.datasource.source
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.execution.streaming.{Offset, Source}
-import org.apache.spark.sql.hybrid.json.datasource.HybridJsonOptions.OBJECT_NAME
-import org.apache.spark.sql.hybrid.json.datasource.Syntax._
-import org.apache.spark.sql.hybrid.json.datasource.mongo.FieldsName._
+import org.apache.spark.sql.execution.streaming.{ Offset, Source }
 import org.apache.spark.sql.hybrid.json.datasource.mongo.MongoClient
-import org.apache.spark.sql.hybrid.json.datasource.mongo.TablesName.FILE_INDEX
-import org.apache.spark.sql.hybrid.json.datasource.rdd.{HybridJsonStreamRDD, buildPartition}
-import org.apache.spark.sql.hybrid.json.datasource.{HybridJsonOffset, HybridJsonOptions}
+import org.apache.spark.sql.hybrid.json.datasource.mongo.table.FileIndex
+import org.apache.spark.sql.hybrid.json.datasource.rdd.HybridJsonStreamRDD
+import org.apache.spark.sql.hybrid.json.datasource.{ HybridJsonOffset, HybridJsonOptions, HybridJsonPartition }
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{ DataFrame, SparkSession }
 import org.apache.spark.util.Utils
-import org.mongodb.scala.Document
-import org.mongodb.scala.model.Filters.{and, gt, lte}
-import org.mongodb.scala.model.Sorts.{descending, orderBy}
 
-class HybridJsonStreamSource(val schema: StructType, options: HybridJsonOptions) extends Source with Logging {
-  val spark: SparkSession = SparkSession.active
+private[sql] class HybridJsonStreamSource(val schema: StructType, options: HybridJsonOptions)
+    extends Source
+    with Logging {
+  private val spark: SparkSession = SparkSession.active
 
   def getOffset: Option[Offset] = {
     Utils
-      .tryWithResource(MongoClient(options.mongoUri))(
-        _.find(FILE_INDEX, Document(OBJECT_NAME -> options.objectName()))
-          .sort(orderBy(descending(COMMIT_MILLIS)))
-          .map(_.get(COMMIT_MILLIS).map(_.asNumber().longValue()))
-          .head()
-          .await()
+      .tryWithResource(MongoClient(options.mongoUri, options.database, options.fileIndex))(
+        _.findByObjectName[FileIndex](options.objectName)
       )
+      .map(_.commitMillis)
+      .sortWith(_ < _)
+      .headOption
       .map(HybridJsonOffset)
   }
 
@@ -37,22 +32,21 @@ class HybridJsonStreamSource(val schema: StructType, options: HybridJsonOptions)
       case Some(start) =>
         val startOffsetCommitMillis = start.json().toLong // unsafe casting, can throw NumberFormatException
         Utils
-          .tryWithResource(MongoClient(options.mongoUri))(
-            _.find(FILE_INDEX, Document(OBJECT_NAME -> options.objectName()))
-              .filter(and(gt(COMMIT_MILLIS, startOffsetCommitMillis), lte(COMMIT_MILLIS, endOffsetCommitMillis)))
-              .toFuture()
-              .await()
+          .tryWithResource(MongoClient(options.mongoUri, options.database, options.fileIndex))(
+            _.findByObjectName[FileIndex](options.objectName)
           )
+          .filter { fileIndex =>
+            startOffsetCommitMillis < fileIndex.commitMillis && fileIndex.commitMillis < endOffsetCommitMillis
+          }
       case _ =>
-        Utils.tryWithResource(MongoClient(options.mongoUri))(
-          _.find(FILE_INDEX, Document(OBJECT_NAME -> options.objectName()))
-            .toFuture()
-            .await()
+        Utils.tryWithResource(MongoClient(options.mongoUri, options.database, options.fileIndex))(
+          _.findByObjectName[FileIndex](options.objectName)
         )
     }
-    val partitions = files.zipWithIndex.map { case (fileIndex, partitionId) => buildPartition(partitionId, fileIndex) }
-      .flatMap(_.toSeq)
-      .toArray
+    val partitions = files.zipWithIndex.map {
+      case (fileIndex, partitionId) =>
+        HybridJsonPartition(partitionId, fileIndex.filepath, fileIndex.commitMillis, fileIndex.columnStats)
+    }.toArray
     val rdd = new HybridJsonStreamRDD(partitions, schema)
     spark.internalCreateDataFrame(rdd, schema, isStreaming = true)
   }

@@ -1,25 +1,17 @@
 package org.apache.spark.sql.hybrid.json.datasource
 
-import org.apache.spark.sql.hybrid.json.datasource.HybridJsonOptions.{ FILEPATH, OBJECT_NAME }
+private[sql] class HybridJsonOptions(params: Map[String, String]) extends Serializable {
 
-case class HybridJsonOptions(params: Map[String, String], mongoUri: String) {
+  val objectName: String  = getOrThrow("objectName")
+  val filepath: String    = getOrThrow("filepath")
 
-  def get(option: String): String =
-    params.getOrElse(option, throw new IllegalArgumentException(s"Parameter: `$option` must be specified"))
+  val database: String    = params.getOrElse("database", "index_store")
+  val schemaIndex: String = params.getOrElse("schemaIndex", "schema_index")
+  val fileIndex: String   = params.getOrElse("fileIndex", "file_index")
 
-  def objectName(): String = get(OBJECT_NAME)
+  val mongoUri: String =
+    Option(System.getenv("MONGO_URI")).getOrElse("mongodb://localhost:27017")
 
-  def path(): String = get(FILEPATH)
-}
-
-object HybridJsonOptions {
-  private val MONGO_LOCALHOST_URI = "mongodb://localhost:27017"
-
-  val OBJECT_NAME = "objectName"
-  val FILEPATH    = "filepath"
-
-  def apply(params: Map[String, String]): HybridJsonOptions = {
-    val mongoUri = Option(System.getenv("MONGO_URI")).getOrElse(MONGO_LOCALHOST_URI)
-    new HybridJsonOptions(params, mongoUri)
-  }
+  private def getOrThrow(option: String): String =
+    params.getOrElse(option, throw new IllegalStateException(s"Option: `$option` must be specified"))
 }
