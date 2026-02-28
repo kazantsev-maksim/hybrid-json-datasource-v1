@@ -6,7 +6,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.json.JacksonGenerator
 import org.apache.spark.sql.types.StructType
 
-class RowParser(schema: StructType) {
+private[sql] class RowParser(schema: StructType) {
 
   def toJsonString(input: Iterator[InternalRow]): Iterator[String] = {
     val writer     = new CharArrayWriter()

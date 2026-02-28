@@ -7,7 +7,7 @@ import org.apache.spark.sql.execution.datasources.FailureSafeParser
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.unsafe.types.UTF8String
 
-class JsonParser(schema: StructType) {
+private[sql] class JsonParser(schema: StructType) {
 
   def toRow(input: Iterator[String]): Iterator[InternalRow] = {
     val jsonParser = new JacksonParser(schema, emptySparkJsonOptions)

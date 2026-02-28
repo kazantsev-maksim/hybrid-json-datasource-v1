@@ -7,10 +7,10 @@ import org.scalatest.matchers.should
 
 class JsonParserSpec extends AnyFlatSpec with should.Matchers with TestSparkSession {
 
-  val Schema: StructType =
-    StructType {
-      StructField("firstName", StringType) :: StructField("lastName", StringType) :: StructField("age", IntegerType) :: Nil
-    }
+  val Schema: StructType = new StructType()
+    .add("firstName", StringType)
+    .add("lastName", StringType)
+    .add("age", IntegerType)
 
   val RawUserJsonString: String = """ { "firstName": "Igor", "lastName": "Ivanov", "age": 31 } """
 
@@ -18,10 +18,13 @@ class JsonParserSpec extends AnyFlatSpec with should.Matchers with TestSparkSess
     val parser = new JsonParser(Schema)
     val row    = parser.toRow(Iterator(RawUserJsonString))
     val rdd    = spark.sparkContext.parallelize(row.toList)
-    val user   = spark.internalCreateDataFrame(rdd, Schema, isStreaming = false).collect().head.toSeq
+    val user = spark
+      .internalCreateDataFrame(rdd, Schema, isStreaming = false)
+      .collect()
+      .head
 
-    user.head shouldBe "Igor"
-    user(1) shouldBe "Ivanov"
-    user(2) shouldBe 31
+    user.getAs[String]("firstName") shouldBe "Igor"
+    user.getAs[String]("lastName") shouldBe "Ivanov"
+    user.getAs[Int]("age") shouldBe 31
   }
 }

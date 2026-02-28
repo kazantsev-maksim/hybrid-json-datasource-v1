@@ -7,7 +7,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.hybrid.json.datasource.HybridJsonPartition
 import org.apache.spark.sql.types.StructType
 
-class HybridJsonStreamRDD(partitions: Array[HybridJsonPartition], schema: StructType)
+private[sql] class HybridJsonStreamRDD(partitions: Array[HybridJsonPartition], schema: StructType)
     extends RDD[InternalRow](SparkSession.active.sparkContext, Nil) {
 
   def compute(partition: Partition, context: TaskContext): Iterator[InternalRow] = {
